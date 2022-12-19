@@ -1,0 +1,147 @@
+load_file("nrngui.hoc")
+xopen("Purk_active.hoc")
+
+access somaA
+celsius = 34
+tstop =1000*0.001
+dt = 0.02
+steps_per_ms = 1/dt
+dtsim = 0.02
+
+fr_total = 11
+
+objref st_step
+st_step = new Vector(50,0)
+st_step.x[0]= 0.25
+st_step.x[1]= 0.25
+st_step.x[2]= 0.1
+st_step.x[3]= 0.1
+st_step.x[4]= 0.05
+st_step.x[5]= 0.05
+st_step.x[6]= 0.05
+st_step.x[7]= 0.05
+st_step.x[8]= 0.05
+st_step.x[9]= 0.05
+st_step.x[10]= 0.05
+st_step.x[11]= 0.05
+
+finitialize(v_init)
+objref ward_num
+ward_num = new Vector(400,0)
+
+objref stim_st
+stim_st = new Vector(400,20000)
+
+objref basalfr
+basalfr = new File("./simdata/basal_condition.dat")
+basalfr.ropen()
+objref InjectMatrix
+InjectMatrix = new Matrix()
+InjectMatrix.scanf(basalfr,fr_total,3)
+
+for(i=0; i<fr_total; i = i+1){
+		ward_num.x[(InjectMatrix.x[i][0])-1]=int(InjectMatrix.x[i][1]*int(1/st_step.x[(InjectMatrix.x[i][0])-1]))
+		stim_st.x[(InjectMatrix.x[i][0])-1] = InjectMatrix.x[i][2]
+}
+
+strdef tmpstr
+strdef outDir
+strdef cmd 
+objref outfile
+outfile = new File()
+
+objref pc
+pc = new ParallelContext()
+print "number of hosts: ", pc.nhost(), "\thost id: ", pc.id() 
+st = pc.time
+
+
+proc setdrive() {
+  stim1.amp = $1
+}
+
+func distscale() {local key localobj returnvec
+	key = $1
+	returnvec = new Vector()
+	returnvec = calc_prc_single(key)
+	pc.pack(returnvec)
+	pc.post(key)
+	return key
+}
+	
+	objref apc
+obfunc calc_prc_single() {local base_num, st_num localobj APs
+    base_num = $1
+	st_num = int((base_num - (int(base_num/100000))*100000)/1000)
+    shift = base_num-(int(base_num/100000))*100000-st_num*1000
+    base_num = int(base_num/100000)
+    stim2.del = stim_st.x[base_num-1]+ st_step.x[base_num-1]* shift
+    stim2.amp = -0.5*st_num*0.1
+    curr = -0.2+0.1*(base_num-1)
+	setdrive (curr)
+  APs = new Vector()
+  somaA apc = new APCount(0.5)
+  apc.thresh = -20
+  apc.record(APs)
+
+    run()
+    return APs
+}
+
+pc.runworker()
+
+
+objref threshvec
+threshvec=new Vector()
+objref basalvec
+
+
+proc calc_prcs() {
+	icurr_ind = $1
+	if (stim_opt) {
+	    sprint(outDir,"simdata/amp")
+	    } else{
+	    sprint(outDir,"simdata/dur")
+	 }
+    sprint(cmd, "system(\"mkdir -p %s\")",outDir)
+	execute(cmd)
+	sprint(tmpstr,"%s/prc_timing_stim.dat",outDir) 
+	outfile.wopen(tmpstr)
+	
+	
+	for icurr = 1,icurr_ind {
+		for st = 1, $2 {
+    		for ward = 1, ward_num.x[icurr-1] {
+    			mmtag=ward+1000*st+100000*icurr
+    			pc.submit("distscale",mmtag)
+			}
+		}
+	}
+
+		//collect error values
+	while (pc.working()) {
+		key = pc.retval()	//retrieve the tag
+		pc.look_take(key)	//remove the tag/job from the bulletin
+		
+		threshvec = pc.upkvec()	//unpack the error value associated with the tag
+		
+		print "received key ",key
+	   cuno=int(key/100000)
+	   stno = int((key-cuno*100000)/1000)
+	   wardno = key-cuno*100000-stno*1000
+	   
+			for te = 0, threshvec.size() - 1 {
+       	 		outfile.printf ("%e %e %e %e\n", cuno, stno, wardno, threshvec.x[te])
+      		}
+      		outfile.flush()
+        }
+        outfile.close()
+}
+
+
+printf("the basal firing rates are configured")
+stim_opt = 1
+
+calc_prcs(fr_total,1)
+
+print "the time used is",pc.time-st

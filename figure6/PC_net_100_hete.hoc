@@ -1,0 +1,380 @@
+
+initialization_tstart = startsw()
+
+strdef modelname
+strdef cmd
+strdef fileName
+objref fileObj
+objref fileObj2
+
+fileObj = new File()
+fileObj2 = new File()
+
+rdSeed = 1 
+Nmc = 120		//the number of PCs should be 110,120,130 in different conditions, corresponding to Fig 6C-E
+trial =1
+con_rad = 5	
+beta = 0
+isolat =0
+
+pre_pf_rec = 0 
+pre_inh_rec =0
+
+celsius = 34
+
+tstop = 500000
+dt = 0.02
+step_per_ms= 1/dt
+
+v_init = -70
+
+NsynI = 10   
+Econ = 0.0005
+Icon = 0.001/NsynI 
+
+NcontE = 2	
+
+NcontI = 5
+
+Ncontst = 6*NsynI	
+Ncontbs = 4*NsynI	
+
+frpf_scale = 1e-6
+frin_scale = 1e-6
+Ihold = 0
+Ivar = 0.1940
+
+
+param_NGrc_sign = 0   
+param_Nst_sign = 0
+param_Nbs_sign = 0
+
+NGrc = 1   
+Nst = 1	
+Nbs = 1	
+
+
+
+param_f_s = 2   
+param_f_s2 = 1   
+param_amp_s = 0    
+
+param_f_inh_s = 2    
+param_f_inh_s2 = 1   
+param_amp_inh_s = 0 
+
+strdef outDir,outDir2,outDir3
+
+sprint(outDir,"predata")
+sprint(cmd,"system(\"mkdir -p %s\")",outDir)
+execute(cmd)
+
+NsynE = (NGrc+param_NGrc_sign)*NcontE
+NsynIst = (Nst+param_Nst_sign)*Ncontst 
+NsynIbs = (Nbs+param_Nbs_sign)*Ncontbs
+
+param_rateE =0.5400*frpf_scale
+
+param_rateIst = 14.4*frin_scale
+param_rateIbs = 14.4*frin_scale
+
+xopen("pkj.hoc")
+
+objref tempvec
+tempvec = new Vector()
+{tempvec.append(Nmc)}
+
+{Ncells2save = tempvec.min()}
+
+
+objref pkj_TTC
+objref sl //synaptic locations list
+
+
+objref rds1,rds2
+{rds1 = new Random(1000*rdSeed)}
+{rds2 = new Random(2000*rdSeed)}
+{rds1.uniform(0,1)}
+{rds2.uniform(0,1)}
+
+
+objref conMat,cons,cont,vecN,switchEdge,target,conInd,switchInd,switchInd2,si
+conMat = new Matrix(Nmc,Nmc)     
+cons = new Matrix(Nmc,con_rad)
+cont = new Matrix(Nmc,con_rad)
+vecN = new Vector()
+vecN.indgen(0,Nmc-1,1)
+for (i=0;i<con_rad;i+=1) {
+	cons.setcol(i,vecN)
+	cont.setcol(i,vecN.c.add(i+1))
+}
+for(i=0;i<Nmc;i+=1){
+	for(j=0;j<con_rad;j+=1){
+		cont.x[i][j] = (cont.x[i][j])%Nmc
+		conMat.x[cons.x[i][1]][cont.x[i][j]] = 1
+	}
+}
+conMat.add(conMat.c.transpose())
+
+
+switchEdge = new Vector(2*con_rad)
+switchInd = new Vector()
+switchInd2= new Vector()
+target = new Vector(Nmc)
+conInd = new Vector()
+
+for (i = 0;i<Nmc;i+=1) {
+	switchEdge.setrand(rds1)
+	target.setrand(rds2)
+	target.x(i) = 0
+	switchInd = switchEdge.c.indvwhere("<",beta)
+	switchInd2 = switchEdge.c.indvwhere(">=",beta)
+	conInd = conMat.getcol(i).c.indvwhere(">",0)
+	if (switchInd.size()*conInd.size()) {
+		for (j = 0;j<switchInd2.size();j+=1) {
+			target.x(conInd.x(switchInd2.x(j))) = 0
+		}
+		si = target.sortindex.reverse()
+		for (k = 0;k<switchInd.size();k+=1) {
+			conMat.x[conInd.x(switchInd.x[k])][i]=0
+		}
+		for (k = 0;k<switchInd.size();k+=1) {
+			conMat.x[si.x[k]][i]=1
+		}
+	}
+}
+
+objref het_vec,hetrand,het_index
+hetrand = new Random(6666666+Nmc)
+hetrand.uniform(0,1)
+het_vec = new Vector(Nmc)
+het_vec.setrand(hetrand)
+het_index = het_vec.sortindex
+
+if (isolat) {
+conMat.zero()
+con_rad = 0
+}
+
+{load_file("netparmpi.hoc")}
+objref epnm
+epnm = new ParallelNetManager(Nmc)
+{epnm.round_robin()}
+
+
+for(i=0;i<Nmc;i+=1){
+	if (epnm.gid_exists(i)) {
+		pkj_TTC = new pkj_neuron() 
+		epnm.register_cell(i,pkj_TTC)       
+		epnm.pc.gid2cell(i).initRand(1000*rdSeed+i) 
+		epnm.pc.gid2cell(i).setnetworkparameters(Econ,Icon,NsynE,NsynIst,NsynIbs,NcontI)
+		epnm.pc.gid2cell(i).setsignalparameters(param_rateE,param_rateIst,NGrc,Nst, Nbs, param_NGrc_sign,param_Nst_sign,param_Nbs_sign,param_f_s,param_amp_s,param_f_inh_s,param_amp_inh_s,tstop)
+		epnm.pc.gid2cell(i).distributeSyn()	
+		epnm.pc.gid2cell(i).setpretrains(i,i+500,i+1000,i+1500,i+2000)
+	}
+}
+
+proc distribute() {
+Nred  = Nmc-100
+het_index.resize(Nred)
+for(i=0;i<Nmc;i+=1){
+	if (epnm.gid_exists(i)) {
+		epnm.pc.gid2cell(i).fl.new_seed(i+trial*Nmc)
+		epnm.pc.gid2cell(i).fl.m = -0.2+($1-1)*0.1
+		epnm.pc.gid2cell(i).fl.s = 0+Ivar*($2-1)*0.2
+		epnm.pc.gid2cell(i).fl.tau = 5   
+ 
+ 		epnm.pc.gid2cell(i).fl.amp = 1
+ 		
+ 		if (het_index.contains(i)) {
+ 			epnm.pc.gid2cell(i).fl.amp = -0.2
+ 		}
+		epnm.pc.gid2cell(i).fl.freq = 1
+		epnm.pc.gid2cell(i).fl.fr_stm = 1
+		epnm.pc.gid2cell(i).fl.onset = 0
+		epnm.pc.gid2cell(i).fl.np = 100000000
+		epnm.pc.gid2cell(i).Istim.dur = i*3     
+	}
+}
+}
+
+objref syninds
+
+proc connection() {
+
+for(i=0;i<Nmc;i+=1){
+	if (epnm.gid_exists(i)) {
+		epnm.pc.gid2cell(i).insertMCcons(conMat.getcol(i)) 
+		// distribute synapses on the postsynaptic cell.
+	}
+}
+
+syninds = new Vector()
+for(i=0;i<Nmc;i+=1){
+	syninds.append(NsynE+NsynIst+NsynIbs) //syninds starts from the total number of background synapses and then ....
+}
+
+for(i=0;i<Nmc;i+=1){
+	for(j=0;j<Nmc;j+=1){
+		if (conMat.x[j][i] != 0){  
+			for(jj=0;jj<NcontI;jj+=1){
+				epnm.nc_append(j,i,syninds.x[i],1e-3/NcontI,1.5) 
+				syninds.x[i] +=1    
+			}
+		}
+	}
+}
+
+for(i=0;i<Nmc;i+=1){
+	if (epnm.gid_exists(i)) {
+		{epnm.pc.gid2cell(i).queuePreTrains()}
+	}1
+}
+}
+
+connection()
+
+strdef outDir2
+
+proc out_folder() {
+	modelname = "Purkinje"
+	sprint(outDir2,"simdata_sango/%s/N%d_rad%d_beta%d_stimm%d_stims%d_ratio%d",modelname,Nmc,con_rad,beta*10,$1,$2,$3)
+
+	sprint(cmd,"system(\"mkdir -p %s\")",outDir2)
+	execute(cmd)
+
+	if(epnm.gid_exists(0)){
+	sprint(fileName,"%s/conmat.txt",outDir2)
+	fileObj.wopen(fileName)
+	conMat.fprint(0,fileObj)
+	fileObj.close()
+	sprint(fileName,"%s/het_rand.txt",outDir2)
+	fileObj.wopen(fileName)
+	het_vec.printf(fileObj)
+	fileObj.close()
+	}
+}
+
+
+objref vSomaList
+objref apcvecList, apcList
+
+
+proc record() {
+	apcvecList = new List()
+	apcList = new List()
+	vSomaList = new List()
+	for(i=0;i<Ncells2save;i+=1){
+		if (epnm.gid_exists(i)) {
+			vSomaList.append(new Vector())
+			access epnm.pc.gid2cell(i).somaA
+			vSomaList.o[vSomaList.count()-1].record(&v(0.5),dt)
+		}
+	}
+
+
+	for(i=0;i<Nmc;i+=1){
+		if (epnm.gid_exists(i)) {
+			access epnm.pc.gid2cell(i).somaA
+			apcList.append(new APCount(0.5))
+			apcvecList.append(new Vector())
+			apcList.o[apcList.count()-1].thresh= -30  
+			apcList.o[apcList.count()-1].record(apcvecList.o[apcList.count()-1])
+		}
+	}
+}
+
+proc myprun() {
+{epnm.set_maxstep(100)}
+finitialize(-65)   
+
+if (epnm.gid_exists(0)) {
+	print "\n"
+	sim_tstart = startsw()
+	initializationtime = (sim_tstart-initialization_tstart)/3600
+	print "Initialization completed. Initialization took ", initializationtime, " hours\n"
+	print "Starting simulation\n"
+	print "\n"
+}
+
+{epnm.psolve(tstop)}
+
+if (epnm.gid_exists(0)) {
+	simruntime = (startsw() - sim_tstart)/3600
+	print "Simulation took ", simruntime, " hours\n"
+	fileObj2.printf("simulation took %f hours\n",simruntime)
+	fileObj2.flush()
+}
+
+
+if (pre_inh_rec) {
+for(i=0;i<Ncells2save;i+=1){
+	if (epnm.gid_exists(i)) {
+		for (mm=0; mm< epnm.pc.gid2cell(i).preTrainList_inh_sign.count();mm+=1) {
+		    tempvec = new Vector()
+		    tempvec = epnm.pc.gid2cell(i).preTrainList_inh_sign.o[mm].c
+		    sprint(fileName,"%s/pre_inh_%03d_%03d.txt",outDir,i,mm)
+		    fileObj.wopen(fileName)
+		    tempvec.printf(fileObj,"%2.6e\n")
+		    fileObj.close()
+		}
+	}
+  }
+}
+
+if (pre_pf_rec) {
+for(i=0;i<Ncells2save;i+=1){
+	if (epnm.gid_exists(i)) {
+		for (mm=0; mm< epnm.pc.gid2cell(i).preTrainList_sign.count();mm+=1) {
+		    tempvec = new Vector()
+		    tempvec = epnm.pc.gid2cell(i).preTrainList_sign.o[mm].c
+		    sprint(fileName,"%s/pre_pf_%03d_%03d.txt",outDir,i,mm)
+		    fileObj.wopen(fileName)
+		    tempvec.printf(fileObj,"%2.6e\n")
+		    fileObj.close()
+		}
+	}
+  }
+}
+		
+i2=0
+for(i=0;i<Nmc;i+=1){
+	if (epnm.gid_exists(i)) {
+		tempvec = new Vector()
+        tempvec = apcvecList.o[i2].c
+		sprint(fileName,"%s/spikeTimesN%d.txt",outDir2,i)
+		fileObj.wopen(fileName)
+		tempvec.printf(fileObj,"%2.6e\n")
+		fileObj.close()
+		
+
+        tempvec = new Vector()   
+        Nspike =  apcList.o[i2].n
+        
+		i2+=1
+	}
+}
+}
+
+proc loop_run() {
+	for iloop =3,3 {
+		for jloop = 7,7 {
+			for mloop = 2,2 {
+				distribute(iloop,jloop,mloop)
+				out_folder(iloop,jloop,mloop)
+				record()
+				myprun()
+			}
+		}
+	}
+}
+
+sprint(outDir3,"simtime")
+sprint(cmd,"system(\"mkdir -p %s\")",outDir3)
+execute(cmd)
+fileObj2.wopen("./simtime/simulationtime.dat")
+
+loop_run()
+fileObj2.close()
+{epnm.pc.runworker()}
+{epnm.pc.done()}

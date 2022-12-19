@@ -1,0 +1,177 @@
+load_file("nrngui.hoc")
+xopen("Purk_active.hoc")
+
+access somaA			// This is location of somatic electrode
+celsius = 34
+tstop =1000
+dt = 0.02
+steps_per_ms = 1/dt
+dtsim = 0.02
+
+fr_total = 11
+
+objref st_step
+st_step = new Vector(50,0)
+st_step.x[0]= 0.25
+st_step.x[1]= 0.25
+st_step.x[2]= 0.1
+st_step.x[3]= 0.1
+st_step.x[4]= 0.05
+st_step.x[5]= 0.05
+st_step.x[6]= 0.05
+st_step.x[7]= 0.05
+st_step.x[8]= 0.05
+st_step.x[9]= 0.05
+st_step.x[10]= 0.05
+st_step.x[11]= 0.05
+
+finitialize(v_init)
+objref ward_num
+ward_num = new Vector(400,0)
+
+objref stim_st
+stim_st = new Vector(400,20000)
+
+objref basalfr
+basalfr = new File("./simdata/basal_condition.dat")
+basalfr.ropen()
+objref InjectMatrix
+InjectMatrix = new Matrix()
+InjectMatrix.scanf(basalfr,fr_total,3)
+for(i=0; i<fr_total; i = i+1){
+		ward_num.x[(InjectMatrix.x[i][0])-1]=int(InjectMatrix.x[i][1]*int(1/st_step.x[(InjectMatrix.x[i][0])-1]))
+		stim_st.x[(InjectMatrix.x[i][0])-1] = InjectMatrix.x[i][2]
+}
+strdef tmpstr
+strdef outDir
+strdef cmd 
+objref outfile
+outfile = new File()
+
+objref pc
+pc = new ParallelContext()
+print "number of hosts: ", pc.nhost(), "\thost id: ", pc.id() 
+st = pc.time
+
+
+proc setdrive() {
+  stim1.amp = $1
+}
+
+func distscale() {local key localobj returnvec
+	key = $1
+	returnvec = new Vector()
+	returnvec = calc_prc_single(key)
+	pc.pack(returnvec)
+	pc.post(key)
+	return key
+}
+	
+
+obfunc calc_prc_single() {localobj temvec,temvec2,temvec3,temvec4,temvec5,temvec6,temvec7,temvec8, outvec,outvec2,outvec3,outvec4,av
+    base_num = $1
+	st_num = int((base_num - (int(base_num/100000))*100000)/1000)
+    shift = base_num-(int(base_num/100000))*100000-st_num*1000
+    base_num = int(base_num/100000)
+    stim2.del = stim_st.x[base_num-1]+ st_step.x[base_num-1]* shift
+    stim2.amp = 0.5*st_num*0.1
+    curr = -0.2+0.1*(base_num-1)
+	setdrive (curr)
+	
+	outvec=new Vector()
+	outvec.record(&somaA.v(0.5))
+	outvec2=new Vector()
+	outvec2.record(&somaA.v(0.4))
+	outvec3=new Vector()
+	outvec3.record(&somaA.v(0.6))
+	temvec=new Vector()
+	temvec.record(&somaA.ina_naRsg(0.5))
+	temvec2=new Vector()
+	temvec2.record(&somaA.ina_nap(0.5))
+	temvec3=new Vector()
+	temvec3.record(&somaA.ik_SK2(0.5))
+	temvec4=new Vector()
+	temvec4.record(&somaA.ik_mslo(0.5))
+	temvec5=new Vector()
+	temvec5.record(&somaA.ik_abBK(0.5))
+	temvec6=new Vector()
+	temvec6.record(&somaA.ica_newCaP(0.5))
+	temvec7=new Vector()
+	temvec7.record(&somaA.i_hpkj(0.5))
+	temvec8=new Vector()
+	temvec8.record(&somaA.ik_Kv34(0.5))
+	
+	av = new Vector()
+	av.record(&somaA.av_naRsg(0.5))	
+
+    run()
+    somaA {axia = ri(0.6)}
+	somaA {axial = ri(0.5)}
+	outvec4 = new Vector()
+	outvec4 = outvec.c
+	outvec.append(outvec2,outvec3,av,temvec,temvec2,temvec3,temvec4,temvec5,temvec6,temvec7,temvec8)
+	outvec2.sub(outvec4).div(axial)
+	outvec3.sub(outvec4).div(axia)		//the unit is nA
+	outvec2.add(outvec3)		//outvec2 is the net axial current
+	
+    outvec.append(outvec2)		//v_05,v_04,v_06, availability of Na, Na current,persistent Na, sk2,BKf,BKs,Cap, axial current 
+    return outvec
+}
+
+pc.runworker()
+
+
+objref threshvec
+threshvec=new Vector()
+objref basalvec
+
+
+proc calc_prcs() {
+	icurr_ind = $1
+	if (stim_opt) {
+//warning!!!! don't set conditions here, because it would not be global as we have expected!	
+	    sprint(outDir,"simdata/cur")
+	    } else{
+	    sprint(outDir,"simdata/dur")
+	 }
+    sprint(cmd, "system(\"mkdir -p %s\")",outDir)
+	execute(cmd)
+	sprint(tmpstr,"%s/prc_timing_stim.dat",outDir)      //need fixing
+	outfile.wopen(tmpstr)
+	
+	
+	for icurr = icurr_ind,icurr_ind {
+		for st = 1, $2 {
+    		for ward = 1, ward_num.x[icurr-1] {
+    			mmtag=ward+1000*st+100000*icurr
+    			pc.submit("distscale",mmtag)	//send out the error calculations
+			}
+		}
+	}
+
+		//collect error values
+	while (pc.working()) {
+		key = pc.retval()	//retrieve the tag
+		pc.look_take(key)	//remove the tag/job from the bulletin
+		
+		threshvec = pc.upkvec()	//unpack the error value associated with the tag
+		
+		print "received key ",key
+	   cuno=int(key/100000)
+	   stno = int((key-cuno*100000)/1000)
+	   wardno = key-cuno*100000-stno*1000
+	   
+        sprint(tmpstr,"simdata/cur/spike_times_%03d_%03d.dat",cuno,wardno)
+        outfile.wopen(tmpstr)
+        threshvec.printf(outfile, "  %g")
+        outfile.close()
+        }
+}
+
+printf("the basal firing rates are configured")
+stim_opt = 1    //1 for stim_amp, 0 for duration
+
+//nsim = 1,7 and 11 in our manuscript. do three simulations
+nsim = 7
+calc_prcs(nsim,1)
+print "the time used is",pc.time-st

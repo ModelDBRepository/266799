@@ -1,0 +1,64 @@
+//remember to set the nseg to 3, the unit of i should be nA
+//soma to dendrite
+func iao() { local i
+	dendA1_0 {
+		i = -(v(0.5)-v(0.5-1/nseg))/ri(0.5)
+	}
+	return i
+}
+func iai() { local i
+	dendA1_0 {
+	  i = -(v(0.5+1/nseg)-v(0.5))/ri(0.5+1/nseg)	
+	}
+	return i
+}
+func ia3() { local i
+	somaA {
+	  i = -(v(0.5+1/nseg)-v(0.5))/ri(0.5+1/nseg)	
+	}
+	return i
+}
+
+func ia4() { local i
+	somaA {
+	  i = (v(0.5-1/nseg)-v(0.5))/ri(0.5)	
+	}
+	return i
+}
+
+func ia5() { local i
+	dendA1_00101111 {
+	  i = -(v(0.5+1/nseg)-v(0.5))/ri(0.5+1/nseg)	
+	}
+	return i
+}
+
+func ia6() { local i
+	dendA1_00101111 {
+	  i = (v(0.5-1/nseg)-v(0.5))/ri(0.5)	
+	}
+	return i
+}
+func ia7() { local i
+	dendA1_001011110110010110 {
+	  i = -(v(0.5+1/nseg)-v(0.5))/ri(0.5+1/nseg)	
+	}
+	return i
+}
+
+func ia8() { local i
+	dendA1_001011110110010110 {
+	  i = (v(0.5-1/nseg)-v(0.5))/ri(0.5)	
+	}
+	return i
+}
+
+
+func s1() { local s
+	dendA1_001011110110010110 {
+	 s = area(0.5)
+	}
+	return s
+}
+
+

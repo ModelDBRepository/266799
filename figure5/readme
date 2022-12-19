@@ -1,0 +1,9 @@
+Written by Sungho Hong
+
+run programs in sequence
+This program need Ghostscript installed.
+
+startup.m
+run_original_scaling_case.m
+run_no_scaling_case.m
+run_phase_model.m (must be run after either of the previous two scripts)

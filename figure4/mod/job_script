@@ -1,0 +1,26 @@
+#!/bin/bash
+
+#SBATCH --job-name=gcon
+#SBATCH --mail-user=yunliang.zang@oist.jp
+#SBATCH --ntasks=100
+#SBATCH --partition=compute
+#SBATCH --mem-per-cpu=2g
+#SBATCH --time=7-0
+module purge
+module load intel/2017
+module load intel.mpi/2017
+module load python/2.7.10
+module load openmpi.icc/1.8.6
+
+export CC=/apps/lic/intel/2017/impi/2017.0.098/intel64/bin/mpicc
+export CXX=/apps/lic/intel/2017/impi/2017.0.098/intel64/bin/mpicxx
+export CORENEURON_BASE_DIR=/apps/unit/DeSchutterU/coreneuron_envirn/intel
+export CORENEURON_INSTALL_DIR=$CORENEURON_BASE_DIR/install
+export CORENEURON_SRC_DIR=$CORENEURON_BASE_DIR/src
+NEURON_HOME=CORENEURON_INSTALL_DIR
+export PATH=$CORENEURON_INSTALL_DIR/x86_64/bin:$CORENEURON_INSTALL_DIR/bin:$PATH
+LD_LIBRARY_PATH=/apps/lic/intel/2017/impi/2017.0.098/intel64/lib:$LD_LIBRARY_PATH
+export MODLUNIT=$CORENEURON_INSTALL_DIR/share/nrnunits.lib
+export LD_LIBRARY_PATH
+
+srun --mpi=pmi2 stdbuf -o0 -e0 ./x86_64/special -mpi PC_net_100.hoc

@@ -1,0 +1,329 @@
+
+load_file("nrngui.hoc")
+
+Default_Eleak = -65
+membranecap = 0.64 
+membraneresist = 120236
+axialresist = 120	
+
+	xopen("Purkinje19b972-1.nrn")
+	forsec "axon" delete_section()
+
+objref g2, b2,c2, distra, distrb, distrc,distrd,distre,distrf,cdistry, p	
+
+	forall {
+		insert pas e_pas=Default_Eleak
+	    insert hpkj	
+		insert ds
+		insert pk
+	}
+
+    AIS {  g_pas=1/membraneresist Ra=axialresist cm=membranecap}
+	forsec spinydend {g_pas=5.3/membraneresist Ra=axialresist cm=5.3*membranecap}
+    forsec maindend {g_pas=1.2/membraneresist Ra=axialresist cm=1.2*membranecap}
+	forsec "soma" { g_pas=1/membraneresist Ra=axialresist cm=membranecap}
+
+forsec maindend {insert cdp4N}
+forsec alldend {
+    insert Kv3
+    gbar_Kv3 = 0.1512
+    vshift_Kv3 = 4
+    insert newCaP
+    pcabar_newCaP = 1.90e-4
+    vshift_newCaP =-5
+    insert CaT3_1
+    pcabar_CaT3_1 = 2.7000e-05
+
+    insert mslo
+    gbar_mslo = 0.2150
+    insert SK2
+    gkbar_SK2 = 3.6000e-04
+    scal_SK2 = 1.0
+    ghbar_hpkj = 2.1600e-04
+	insert Kv11
+	gbar_Kv11 = 0.002
+	insert Kv4
+    gbar_Kv4 = 0.0252
+        insert Kv4s
+    gbar_Kv4s = 0.015
+}
+forsec spinydend {
+	insert cdp4Nsp
+    gkbar_SK2 = 3.6000e-04
+    
+    scal_SK2 = 1.0
+gbar_Kv4 = 0.0264
+    gbar_Kv4s = 0.015
+    ghbar_hpkj = 3.2400e-04
+    vshift_Kv4 = 0
+    gbar_Kv11 = 0.001
+    gbar_Kv3 =0.2268
+    vshift_Kv3 = 4
+    pcabar_CaT3_1 = 1.0800e-04
+    pcabar_newCaP = 7.6000e-04
+    vshift_newCaP = -5
+    scale_cdp4Nsp = 3.5
+    gbar_mslo = 0.0448
+
+}
+
+somaA distance()
+access somaA
+
+forsec "soma" {	
+	insert naRsg	
+	gbar_naRsg =0.0317
+	vshifta_naRsg = 0
+    vshiftk_naRsg = 0
+    vshifti_naRsg = -5
+    
+	insert nap
+	gbar_nap = 1.4000e-04
+	insert pk
+	ena = 63
+    ghbar_hpkj = 1.0800e-04
+
+    insert cdp20N_FD2
+    insert Kv34
+    gbar_Kv34 = 1.8000
+
+    insert newCaP
+    pcabar_newCaP = 1.9e-4  
+    kt_newCaP = 1
+    vshift_newCaP = -5
+    insert mslo
+    gbar_mslo = 0.8736
+    insert abBK
+    gabkbar_abBK = 0.3
+    insert SK2
+    gkbar_SK2 = 0.0075
+}
+
+AIS {
+    	insert naRsg		// INa + resurgent
+	gbar_naRsg = 0.56
+	vshifta_naRsg = 15
+	vshiftk_naRsg = 5
+   vshifti_naRsg = -5
+	insert nap
+	gbar_nap = 0.0023
+	insert CaT3_1
+	pcabar_CaT3_1 = 1.2800e-04
+	ena = 63
+    ghbar_hpkj = 1.0800e-04
+   insert cdpAIS
+
+    insert Kv34
+    gbar_Kv34 = 115.2000
+
+    insert newCaP
+    pcabar_newCaP =0.0023   
+    kt_newCaP = 1
+    vshift_newCaP = -5
+    insert mslo
+    gbar_mslo = 6
+    insert abBK
+    gabkbar_abBK = 1.0500
+    insert SK2
+    gkbar_SK2 = 0.0278
+}
+
+
+access somaA			// This is location of somatic electrode
+
+tot=0
+forall {tot=tot+nseg}
+somaA distance(0,1)
+celsius = 34
+tstop =1000
+dt = 0.02
+steps_per_ms = 1/dt
+dtsim = 0.02
+
+v_init = -65
+
+xopen ("electrode.hoc")
+
+xopen("axialcurr2.hoc")
+
+objref injcurr
+injcurr = new Vector(13)
+
+injcurr.x[0] = 0.4
+
+objref con_scale
+con_scale = new Vector(11)
+
+con_scale.x[0] = 0.5
+con_scale.x[1] = 0.6
+con_scale.x[2] = 0.7
+
+con_scale.x[3] = 0.8
+con_scale.x[4] = 0.9
+con_scale.x[5] = 1.0
+
+
+con_scale.x[6] = 1.1
+con_scale.x[7] = 1.2
+con_scale.x[8] = 1.3
+con_scale.x[9] = 1.4
+con_scale.x[10] = 1.5
+
+
+strdef fname,fname2,fname3
+objref f1
+f1 = new File()
+objref f2
+f2 = new File()
+objref f3
+f3 = new File()
+objref recIc,recIIc,recIIIc
+objref rec4c,rec5c,rec6c,rec7c,rec8c,rec9c,rec10c,rec11c,rec12c,rec13c
+objref recs1,recs2,recs3,recs4,recs5,recs6,recs7,recs8,recs9,recs10,recs11
+objref reca1,reca2,reca3,reca4,reca5,reca6,reca7,reca8,reca9,reca10,reca11
+
+objref tempmatrix,tempmatrix2,tempmatrix3
+
+strdef fnamev
+objref fv
+fv = new File()
+objref recI,recII,recIII
+objref rec4,rec5,rec6,rec7,rec8,rec9,rec10
+objref tempmatrixv
+
+
+objref r
+r = new Random()
+r.ACG(6328)
+r.uniform(0,50)
+
+objref backnoise
+somaA backnoise = new IClamp(0.5)
+backnoise.del = 0
+backnoise.dur = 2200
+backnoise.amp = 0
+
+
+	objref CCr
+somaA CCr = new IClamp(0.5) 
+    CCr.del = 0
+    CCr.amp = -0.2*0
+
+for i = 1,11 {
+	
+     stim1.amp = injcurr.x[i-1]
+   
+    ttem = 0.3
+    
+for j = 1,1 {
+	for m = 6,6 {
+    recIc = new Vector()
+    recIc.record(&somaA.Ca_naRsg(0.5))
+    recIIc = new Vector()
+    recIIc.record(&somaA.Ia_naRsg(0.5))
+    recIIIc = new Vector()
+    recIIIc.record(&somaA.O_naRsg(0.5))
+    rec4c = new Vector()
+    rec4c.record(&somaA.B_naRsg(0.5))
+
+    recs1 = new Vector()
+    recs1.record(&somaA.ina_naRsg(0.5))
+    recs2 = new Vector()
+    recs2.record(&somaA.ina_nap(0.5))
+    recs3 = new Vector()
+    recs3.record(&somaA.i_hpkj(0.5))
+    recs4 = new Vector()
+    recs4.record(&somaA.ica_newCaP(0.5))
+    recs5 = new Vector()
+    recs5.record(&somaA.i_pas(0.5))
+    recs6 = new Vector()
+    recs6.record(&somaA.ik_Kv34(0.5))
+    recs7 = new Vector()
+    recs7.record(&somaA.ik_abBK(0.5))
+    recs8 = new Vector()
+    recs8.record(&somaA.ik_mslo(0.5))
+    recs9 = new Vector()
+    recs9.record(&somaA.ik_SK2(0.5))
+        
+    reca1 = new Vector()
+    reca1.record(&somaA.ina_naRsg(0))
+    reca2 = new Vector()
+    reca2.record(&somaA.ina_naRsg(0.1))
+    reca3 = new Vector()
+    reca3.record(&somaA.ina_naRsg(0.2))
+    reca4 = new Vector()
+    reca4.record(&somaA.ina_naRsg(0.3))
+    reca5 = new Vector()
+    reca5.record(&somaA.ina_naRsg(0.4))
+    reca6 = new Vector()
+    reca6.record(&somaA.ina_naRsg(0.5))
+    reca7 = new Vector()
+    reca7.record(&somaA.ina_naRsg(0.6))
+    reca8 = new Vector()
+    reca8.record(&somaA.ina_naRsg(0.7))
+    reca9 = new Vector()
+    reca9.record(&somaA.ina_naRsg(0.8))    
+    reca10 = new Vector()
+    reca10.record(&somaA.ina_naRsg(0.9))
+    reca11 = new Vector()
+    reca11.record(&somaA.ina_naRsg(1))    
+    
+  recI= new Vector()
+  recI.record(&somaA.v(0.5))
+  recII = new Vector()
+  recII.record(&dendA1_00101.v(0.5))
+  recIII = new Vector()
+  recIII.record(&dendA1_001011110110010110.v(0.5))
+  rec4 = new Vector()
+  rec4.record(&dendA1_001101.v(0.5))
+  rec5 = new Vector()
+  rec5.record(&dendA1_0011011000001011100.v(0.5))  
+  rec6 = new Vector()
+  rec6.record(&dendA1_01001.v(0.5))
+  rec7 = new Vector()
+  rec7.record(&dendA1_0100100100110110001.v(0.5))
+  rec8 = new Vector()
+  rec8.record(&dendA1_00101111.v(0.5))
+  rec9 = new Vector()
+  rec9.record(&dendA1_0.v(1))               //different with before, here is the bifurcation point
+  rec10 = new Vector()
+  rec10.record(&AIS.v(1))
+
+
+
+//set the IC, so that reach the SS quickly
+    if (i<3) {v_init = -85
+    }else if (i<5 ){v_init = -75
+    } else {v_init = -68}
+
+    finitialize(-68)
+	continuerun(tstop)
+	somaA {axia = ri(0.6)}
+	somaA {axial = ri(0.5)}
+
+  sprint(fnamev, "prc_inj-%02d-%02d-%02d-002", i,j,m )
+  
+  fv.wopen(fnamev)
+
+
+  tempmatrixv  = new Matrix()
+  tempmatrixv.resize(recI.size(),10)
+  tempmatrixv.setcol(0,recI)
+  tempmatrixv.setcol(1,recII)
+  tempmatrixv.setcol(2,recIII)
+  
+  tempmatrixv.setcol(3,rec4)
+  tempmatrixv.setcol(4,rec5)
+  tempmatrixv.setcol(5,rec6)
+  tempmatrixv.setcol(6,rec7)
+  tempmatrixv.setcol(7,rec8)
+  tempmatrixv.setcol(8,rec9)
+  tempmatrixv.setcol(9,rec10)
+    
+  tempmatrixv.fprint(fv, "  %g")
+
+  fv.close()
+ 	}
+  }
+    printf("The %d th current injection simulation completed\n",i)
+}

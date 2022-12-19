@@ -1,0 +1,141 @@
+load_file("nrngui.hoc")
+
+Default_Eleak = -65
+membranecap = 0.64      	/* specific membrane capacitance in uF cm^-2 */
+membraneresist = 120236 	/* specific membrane resistance in ohm cm^2 */
+axialresist = 120	     	/* axial resistivity in ohm cm */
+
+	xopen("Purkinje19b972-1.nrn")	// Load the morphology file.
+	forsec "axon" delete_section()	// Delete original axon and add a fake AIS
+
+objref g2, b2,c2, distrx, distry, cdistry, p
+
+	forall {
+		insert pas e_pas=Default_Eleak	/* Insert Leak everywhere */
+	    insert hpkj	// Ih inserted everywhere
+		insert pk
+	}
+
+    AIS {  g_pas=1/membraneresist Ra=axialresist cm=membranecap}
+	forsec spinydend {g_pas=5.3/membraneresist Ra=axialresist cm=5.3*membranecap}
+    forsec maindend {g_pas=1.2/membraneresist Ra=axialresist cm=1.2*membranecap}
+	forsec "soma" { g_pas=1/membraneresist Ra=axialresist cm=membranecap}
+
+forsec maindend {insert cdp4N}
+forsec alldend {
+    insert Kv3
+    gbar_Kv3 = 0.1512
+    vshift_Kv3 = 4
+    insert newCaP
+    pcabar_newCaP = 1.90e-4
+    vshift_newCaP =-5
+    insert CaT3_1
+    pcabar_CaT3_1 = 2.7000e-05
+
+    insert mslo
+    gbar_mslo = 0.2150
+    insert SK2
+    gkbar_SK2 = 3.6000e-04
+    scal_SK2 = 1.0
+    ghbar_hpkj = 2.1600e-04
+	insert Kv11
+	gbar_Kv11 = 0.002
+	insert Kv4
+    gbar_Kv4 = 0.0252
+        insert Kv4s
+    gbar_Kv4s = 0.015
+}
+forsec spinydend {
+	insert cdp4Nsp
+    gkbar_SK2 = 3.6000e-04
+    
+    scal_SK2 = 1.0
+gbar_Kv4 = 0.0264
+    gbar_Kv4s = 0.015
+    ghbar_hpkj = 3.2400e-04
+    vshift_Kv4 = 0
+    gbar_Kv11 = 0.001
+    gbar_Kv3 =0.2268
+    vshift_Kv3 = 4
+    pcabar_CaT3_1 = 1.0800e-04
+    pcabar_newCaP = 7.6000e-04
+    vshift_newCaP = -5
+    scale_cdp4Nsp = 3.5
+    gbar_mslo = 0.0448
+
+}
+
+somaA distance()
+access somaA
+
+forsec "soma" {	
+	insert naRsg	
+	gbar_naRsg =0.0317
+	vshifta_naRsg = 0
+    vshiftk_naRsg = 0
+    vshifti_naRsg = -5
+    
+	insert nap
+	gbar_nap = 1.4000e-04
+	insert pk
+	ena = 63
+    ghbar_hpkj = 1.0800e-04
+
+    insert cdp20N_FD2
+    insert Kv34
+    gbar_Kv34 = 1.8000
+
+    insert newCaP
+    pcabar_newCaP = 1.9e-4  
+    kt_newCaP = 1
+    vshift_newCaP = -5
+    insert mslo
+    gbar_mslo = 0.8736
+    insert abBK
+    gabkbar_abBK = 0.3
+    insert SK2
+    gkbar_SK2 = 0.0075
+}
+
+AIS {
+    	insert naRsg		// INa + resurgent
+	gbar_naRsg = 0.56
+	vshifta_naRsg = 15
+	vshiftk_naRsg = 5
+   vshifti_naRsg = -5
+	insert nap
+	gbar_nap = 0.0023
+	insert CaT3_1
+	pcabar_CaT3_1 = 1.2800e-04
+	ena = 63
+    ghbar_hpkj = 1.0800e-04
+   insert cdpAIS
+
+    insert Kv34
+    gbar_Kv34 = 115.2000
+
+    insert newCaP
+    pcabar_newCaP =0.0023   
+    kt_newCaP = 1
+    vshift_newCaP = -5
+    insert mslo
+    gbar_mslo = 6
+    insert abBK
+    gabkbar_abBK = 1.0500
+    insert SK2
+    gkbar_SK2 = 0.0278
+}
+
+
+objref stim1    
+stim1 = new IClamp(0.5)
+stim1.amp =0.1
+stim1.del = 000
+stim1.dur =20000
+
+objref stim2        
+stim2 = new IClamp(0.5)
+stim2.amp =0.25
+stim2.del = 2500
+stim2.dur =0.5
+v_init = -68
